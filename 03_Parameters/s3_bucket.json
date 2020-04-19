@@ -1,0 +1,6 @@
+{
+	"S3BucketParam": {
+		"Description": "Type your domain for your project",
+		"Type": "String"
+	}
+}
