@@ -15,7 +15,7 @@
 				]
 			},
 			"WebsiteConfiguration": {
-				"ErrorDocument": "/404",
+				"ErrorDocument": "404/index.html",
 				"IndexDocument": "index.html"
 			}
 		}
