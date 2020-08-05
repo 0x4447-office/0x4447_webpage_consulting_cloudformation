@@ -10,16 +10,12 @@
 			"Description": "You need to create a Personal access tokens (https://github.com/settings/tokens) for CodePipeline to have access to the GitHub repo despite it being public.",
 			"Type": "String"
 		},
-		"DomainHomePage": {
-			"Description": "Type your domain for your project",
-			"Type": "String"
-		},
-		"S3BucketEmail": {
-			"Description": "This bucket is where we are goign to save the data from the contact page, to then be sent as an email.",
-			"Type": "String"
-		},
 		"CertificateARN": {
 			"Description": "The ARN of a SSL Certificate.",
+			"Type": "String"
+		},
+		"DomainHomePage": {
+			"Description": "Type your domain for your project",
 			"Type": "String"
 		},
 		"Stage": {
@@ -30,6 +26,10 @@
 				"development"
 			],
 			"Default": "development"
+		},
+		"S3BucketEmail": {
+			"Description": "This bucket is where we are goign to save the data from the contact page, to then be sent as an email.",
+			"Type": "String"
 		}
 	},
 	"Resources": {
@@ -101,7 +101,11 @@
 						"GeoRestriction": {
 							"RestrictionType": "blacklist",
 							"Locations": [
-								"CN"
+								"CN",
+								"LA",
+								"CU",
+								"VN",
+								"KP"
 							]
 						}
 					}
@@ -151,177 +155,6 @@
 							"Action": "s3:GetObject",
 							"Resource": {
 								"Fn::Sub": "arn:aws:s3:::${S3WebpageDocumentation}/*"
-							}
-						}
-					]
-				}
-			}
-		},
-		"PipelineWebpageDocumentation": {
-			"Type": "AWS::CodePipeline::Pipeline",
-			"Properties": {
-				"Name": "webpage_consulting",
-				"ArtifactStore": {
-					"Location": {
-						"Ref": "CodePipelineArtifacts"
-					},
-					"Type": "S3"
-				},
-				"RoleArn": {
-					"Fn::GetAtt": [
-						"PipelineWebpageDocumentationRole",
-						"Arn"
-					]
-				},
-				"Stages": [
-					{
-						"Name": "Get",
-						"Actions": [
-							{
-								"Name": "Material",
-								"RunOrder": 1,
-								"ActionTypeId": {
-									"Category": "Source",
-									"Owner": "ThirdParty",
-									"Provider": "GitHub",
-									"Version": "1"
-								},
-								"Configuration": {
-									"Owner": "0x4447-office",
-									"Repo": "0x4447_webpage_consulting",
-									"Branch": {
-										"Ref": "Stage"
-									},
-									"PollForSourceChanges": false,
-									"OAuthToken": {
-										"Ref": "GitHubToken"
-									}
-								},
-								"OutputArtifacts": [
-									{
-										"Name": "material"
-									}
-								]
-							}
-						]
-					},
-					{
-						"Name": "Cast",
-						"Actions": [
-							{
-								"Name": "Mold",
-								"RunOrder": 1,
-								"InputArtifacts": [
-									{
-										"Name": "material"
-									}
-								],
-								"Configuration": {
-									"ProjectName": {
-										"Ref": "CodeBuildWebpageDocumentation"
-									}
-								},
-								"ActionTypeId": {
-									"Category": "Build",
-									"Owner": "AWS",
-									"Provider": "CodeBuild",
-									"Version": "1"
-								}
-							}
-						]
-					}
-				]
-			}
-		},
-		"PipelineWebpageDocumentationRole": {
-			"Type": "AWS::IAM::Role",
-			"Properties": {
-				"RoleName": "webpage_consulting_codepipeline",
-				"AssumeRolePolicyDocument": {
-					"Version": "2012-10-17",
-					"Statement": [
-						{
-							"Effect": "Allow",
-							"Principal": {
-								"Service": "codepipeline.amazonaws.com"
-							},
-							"Action": "sts:AssumeRole"
-						}
-					]
-				}
-			}
-		},
-		"PipelineWebpageDocumentationWebhook": {
-			"Type": "AWS::CodePipeline::Webhook",
-			"Properties": {
-				"Authentication": "GITHUB_HMAC",
-				"AuthenticationConfiguration": {
-					"SecretToken": {
-						"Ref": "GitHubToken"
-					}
-				},
-				"Filters": [
-					{
-						"JsonPath": "$.ref",
-						"MatchEquals": "refs/heads/{Branch}"
-					}
-				],
-				"TargetPipeline": {
-					"Ref": "PipelineWebpageDocumentation"
-				},
-				"TargetAction": "Material",
-				"TargetPipelineVersion": {
-					"Fn::GetAtt": [
-						"PipelineWebpageDocumentation",
-						"Version"
-					]
-				},
-				"RegisterWithThirdParty": true
-			}
-		},
-		"PipelineWebpageDocumentationPolicyCB": {
-			"Type": "AWS::IAM::Policy",
-			"Properties": {
-				"PolicyName": "code_build",
-				"Roles": [
-					{
-						"Ref": "PipelineWebpageDocumentationRole"
-					}
-				],
-				"PolicyDocument": {
-					"Version": "2012-10-17",
-					"Statement": [
-						{
-							"Effect": "Allow",
-							"Action": [
-								"codebuild:BatchGetBuilds",
-								"codebuild:StartBuild"
-							],
-							"Resource": {
-								"Fn::Sub": "arn:aws:codebuild:${AWS::Region}:${AWS::AccountId}:project/${CodeBuildWebpageDocumentation}"
-							}
-						}
-					]
-				}
-			}
-		},
-		"PipelineWebpageDocumentationPolicyS3": {
-			"Type": "AWS::IAM::Policy",
-			"Properties": {
-				"PolicyName": "s3",
-				"Roles": [
-					{
-						"Ref": "PipelineWebpageDocumentationRole"
-					}
-				],
-				"PolicyDocument": {
-					"Version": "2012-10-17",
-					"Statement": [
-						{
-							"Effect": "Allow",
-							"Action": "s3:*",
-							"Resource": {
-								"Fn::Sub": "arn:aws:s3:::${CodePipelineArtifacts}/*"
 							}
 						}
 					]
@@ -431,29 +264,6 @@
 				}
 			}
 		},
-		"CodeBuildWebpageDocumentationPolicyCloudFrontList": {
-			"Type": "AWS::IAM::Policy",
-			"Properties": {
-				"Roles": [
-					{
-						"Ref": "CodeBuildWebpageDocumentationRole"
-					}
-				],
-				"PolicyName": "cloud_front_list",
-				"PolicyDocument": {
-					"Version": "2012-10-17",
-					"Statement": [
-						{
-							"Effect": "Allow",
-							"Action": [
-								"cloudfront:ListDistributions"
-							],
-							"Resource": "*"
-						}
-					]
-				}
-			}
-		},
 		"CodeBuildWebpageDocumentationPolicyCWL": {
 			"Type": "AWS::IAM::Policy",
 			"Properties": {
@@ -483,7 +293,7 @@
 				}
 			}
 		},
-		"CodeBuildWebpageDocumentationPolicyS3": {
+		"CodeBuildWebpageDocumentationPolicyCloudFrontList": {
 			"Type": "AWS::IAM::Policy",
 			"Properties": {
 				"Roles": [
@@ -491,16 +301,16 @@
 						"Ref": "CodeBuildWebpageDocumentationRole"
 					}
 				],
-				"PolicyName": "s3_artifact_access",
+				"PolicyName": "cloud_front_list",
 				"PolicyDocument": {
 					"Version": "2012-10-17",
 					"Statement": [
 						{
 							"Effect": "Allow",
-							"Action": "s3:*",
-							"Resource": {
-								"Fn::Sub": "arn:aws:s3:::${CodePipelineArtifacts}/*"
-							}
+							"Action": [
+								"cloudfront:ListDistributions"
+							],
+							"Resource": "*"
 						}
 					]
 				}
@@ -532,6 +342,200 @@
 				}
 			}
 		},
+		"CodeBuildWebpageDocumentationPolicyS3": {
+			"Type": "AWS::IAM::Policy",
+			"Properties": {
+				"Roles": [
+					{
+						"Ref": "CodeBuildWebpageDocumentationRole"
+					}
+				],
+				"PolicyName": "s3_artifact_access",
+				"PolicyDocument": {
+					"Version": "2012-10-17",
+					"Statement": [
+						{
+							"Effect": "Allow",
+							"Action": "s3:*",
+							"Resource": {
+								"Fn::Sub": "arn:aws:s3:::${CodePipelineArtifacts}/*"
+							}
+						}
+					]
+				}
+			}
+		},
+		"PipelineWebpageDocumentationWebhook": {
+			"Type": "AWS::CodePipeline::Webhook",
+			"Properties": {
+				"Authentication": "GITHUB_HMAC",
+				"AuthenticationConfiguration": {
+					"SecretToken": {
+						"Ref": "GitHubToken"
+					}
+				},
+				"Filters": [
+					{
+						"JsonPath": "$.ref",
+						"MatchEquals": "refs/heads/{Branch}"
+					}
+				],
+				"TargetPipeline": {
+					"Ref": "PipelineWebpageDocumentation"
+				},
+				"TargetAction": "Material",
+				"TargetPipelineVersion": {
+					"Fn::GetAtt": [
+						"PipelineWebpageDocumentation",
+						"Version"
+					]
+				},
+				"RegisterWithThirdParty": true
+			}
+		},
+		"PipelineWebpageDocumentation": {
+			"Type": "AWS::CodePipeline::Pipeline",
+			"Properties": {
+				"Name": "webpage_consulting",
+				"ArtifactStore": {
+					"Location": {
+						"Ref": "CodePipelineArtifacts"
+					},
+					"Type": "S3"
+				},
+				"RoleArn": {
+					"Fn::GetAtt": [
+						"PipelineWebpageDocumentationRole",
+						"Arn"
+					]
+				},
+				"Stages": [
+					{
+						"Name": "Get",
+						"Actions": [
+							{
+								"Name": "Material",
+								"RunOrder": 1,
+								"ActionTypeId": {
+									"Category": "Source",
+									"Owner": "ThirdParty",
+									"Provider": "GitHub",
+									"Version": "1"
+								},
+								"Configuration": {
+									"Owner": "0x4447-office",
+									"Repo": "0x4447_webpage_consulting",
+									"Branch": {
+										"Ref": "Stage"
+									},
+									"PollForSourceChanges": false,
+									"OAuthToken": {
+										"Ref": "GitHubToken"
+									}
+								},
+								"OutputArtifacts": [
+									{
+										"Name": "material"
+									}
+								]
+							}
+						]
+					},
+					{
+						"Name": "Cast",
+						"Actions": [
+							{
+								"Name": "Mold",
+								"RunOrder": 1,
+								"InputArtifacts": [
+									{
+										"Name": "material"
+									}
+								],
+								"Configuration": {
+									"ProjectName": {
+										"Ref": "CodeBuildWebpageDocumentation"
+									}
+								},
+								"ActionTypeId": {
+									"Category": "Build",
+									"Owner": "AWS",
+									"Provider": "CodeBuild",
+									"Version": "1"
+								}
+							}
+						]
+					}
+				]
+			}
+		},
+		"PipelineWebpageDocumentationRole": {
+			"Type": "AWS::IAM::Role",
+			"Properties": {
+				"RoleName": "webpage_consulting_codepipeline",
+				"AssumeRolePolicyDocument": {
+					"Version": "2012-10-17",
+					"Statement": [
+						{
+							"Effect": "Allow",
+							"Principal": {
+								"Service": "codepipeline.amazonaws.com"
+							},
+							"Action": "sts:AssumeRole"
+						}
+					]
+				}
+			}
+		},
+		"PipelineWebpageDocumentationPolicyCB": {
+			"Type": "AWS::IAM::Policy",
+			"Properties": {
+				"PolicyName": "code_build",
+				"Roles": [
+					{
+						"Ref": "PipelineWebpageDocumentationRole"
+					}
+				],
+				"PolicyDocument": {
+					"Version": "2012-10-17",
+					"Statement": [
+						{
+							"Effect": "Allow",
+							"Action": [
+								"codebuild:BatchGetBuilds",
+								"codebuild:StartBuild"
+							],
+							"Resource": {
+								"Fn::Sub": "arn:aws:codebuild:${AWS::Region}:${AWS::AccountId}:project/${CodeBuildWebpageDocumentation}"
+							}
+						}
+					]
+				}
+			}
+		},
+		"PipelineWebpageDocumentationPolicyS3": {
+			"Type": "AWS::IAM::Policy",
+			"Properties": {
+				"PolicyName": "s3",
+				"Roles": [
+					{
+						"Ref": "PipelineWebpageDocumentationRole"
+					}
+				],
+				"PolicyDocument": {
+					"Version": "2012-10-17",
+					"Statement": [
+						{
+							"Effect": "Allow",
+							"Action": "s3:*",
+							"Resource": {
+								"Fn::Sub": "arn:aws:s3:::${CodePipelineArtifacts}/*"
+							}
+						}
+					]
+				}
+			}
+		},
 		"CognitoIdentityPool": {
 			"Type": "AWS::Cognito::IdentityPool",
 			"Properties": {
@@ -556,34 +560,6 @@
 							"Action": "s3:PutObject",
 							"Resource": {
 								"Fn::Sub": "arn:aws:s3:::${S3BucketEmail}/*"
-							}
-						}
-					]
-				}
-			}
-		},
-		"CognitoIDPAuthenticatedRole": {
-			"Type": "AWS::IAM::Role",
-			"Properties": {
-				"RoleName": "webpage_consulting_cognito_identitypool_authenticated",
-				"AssumeRolePolicyDocument": {
-					"Version": "2012-10-17",
-					"Statement": [
-						{
-							"Effect": "Allow",
-							"Principal": {
-								"Federated": "cognito-identity.amazonaws.com"
-							},
-							"Action": "sts:AssumeRoleWithWebIdentity",
-							"Condition": {
-								"StringEquals": {
-									"cognito-identity.amazonaws.com:aud": {
-										"Ref": "CognitoIdentityPool"
-									}
-								},
-								"ForAnyValue:StringLike": {
-									"cognito-identity.amazonaws.com:amr": "authenticated"
-								}
 							}
 						}
 					]
@@ -633,6 +609,34 @@
 								},
 								"ForAnyValue:StringLike": {
 									"cognito-identity.amazonaws.com:amr": "unauthenticated"
+								}
+							}
+						}
+					]
+				}
+			}
+		},
+		"CognitoIDPAuthenticatedRole": {
+			"Type": "AWS::IAM::Role",
+			"Properties": {
+				"RoleName": "webpage_consulting_cognito_identitypool_authenticated",
+				"AssumeRolePolicyDocument": {
+					"Version": "2012-10-17",
+					"Statement": [
+						{
+							"Effect": "Allow",
+							"Principal": {
+								"Federated": "cognito-identity.amazonaws.com"
+							},
+							"Action": "sts:AssumeRoleWithWebIdentity",
+							"Condition": {
+								"StringEquals": {
+									"cognito-identity.amazonaws.com:aud": {
+										"Ref": "CognitoIdentityPool"
+									}
+								},
+								"ForAnyValue:StringLike": {
+									"cognito-identity.amazonaws.com:amr": "authenticated"
 								}
 							}
 						}
