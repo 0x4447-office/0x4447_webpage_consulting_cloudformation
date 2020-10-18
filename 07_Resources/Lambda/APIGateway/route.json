@@ -1,0 +1,16 @@
+{
+    "HttpApiRoute": {
+        "Type": "AWS::ApiGatewayV2::Route",
+        "DependsOn": [
+            "HttpApiIntegration"
+        ],
+        "Properties": {
+            "ApiId": { "Ref": "HttpApi" },
+            "RouteKey": "POST /",
+            "AuthorizationType": "NONE",
+            "Target": {
+                "Fn::Join": [ "/", [ "integrations", { "Ref": "HttpApiIntegration" } ] ]
+            }
+        }
+    }
+}

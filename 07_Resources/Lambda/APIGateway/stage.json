@@ -1,0 +1,11 @@
+{
+	"HttpApiStage": {
+		"Type" : "AWS::ApiGatewayV2::Stage",
+		"Properties" : {
+			"ApiId" : { "Ref": "HttpApi" },
+			"AutoDeploy" : true,
+			"Description" : "Default",
+			"StageName" : "$default"
+		  }
+	  }
+}

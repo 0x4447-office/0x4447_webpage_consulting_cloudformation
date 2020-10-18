@@ -1,13 +1,14 @@
 {
-	"PipelineWebpageDocumentation": {
+	"CalendarCodePipeline": {
 		"Type": "AWS::CodePipeline::Pipeline",
+		"DependsOn": "CalendarCodePipelineRole",
 		"Properties": {
-			"Name": "webpage_consulting",
+			"Name": "calendar",
 			"ArtifactStore": {
-				"Location": { "Ref": "CodePipelineArtifacts" },
+				"Location": { "Ref": "CodePipelineArtifactsParam" },
 				"Type": "S3"
 			},
-			"RoleArn": { "Fn::GetAtt": ["PipelineWebpageDocumentationRole", "Arn" ] },
+			"RoleArn": { "Fn::GetAtt": ["CalendarCodePipelineRole", "Arn" ] },
 			"Stages": [
 				{
 					"Name": "Get",
@@ -23,14 +24,14 @@
 							},
 							"Configuration": {
 								"Owner": "0x4447-office",
-								"Repo": "0x4447_webpage_consulting",
-								"Branch": { "Ref": "Stage" },
+								"Repo": "0x4447_webpage_consulting_lambda_chime",
+								"Branch": { "Ref": "StageParam" },
 								"PollForSourceChanges": false,
-								"OAuthToken": { "Ref": "GitHubToken" }
+								"OAuthToken": { "Ref": "GitHubTokenParam" }
 							},
 							"OutputArtifacts": [
 								{
-									"Name": "material"
+									"Name": "source_code"
 								}
 							]
 						}
@@ -44,11 +45,11 @@
 							"RunOrder": 1,
 							"InputArtifacts": [
 								{
-									"Name": "material"
+									"Name": "source_code"
 								}
 							],
 							"Configuration": {
-								"ProjectName": { "Ref": "CodeBuildWebpageDocumentation" }
+								"ProjectName": { "Ref": "CalendarLambdaCodeBuild" }
 							},
 							"ActionTypeId": {
 								"Category": "Build",

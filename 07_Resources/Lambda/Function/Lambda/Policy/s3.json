@@ -1,0 +1,21 @@
+{
+	"CalendarLambdaPolicyS3": {
+		"Type": "AWS::IAM::Policy",
+		"Properties": {
+			"Roles": [ { "Ref": "CalendarLambdaRole" } ],
+			"PolicyName": "s3",
+			"PolicyDocument": {
+				"Version": "2012-10-17",
+				"Statement": [
+					{
+						"Effect": "Allow",
+						"Action": "S3:PutObject",
+						"Resource": [
+							{ "Fn::Sub": "arn:aws:s3:::0x4447-web-us-east-1-smtp/*" }
+						]
+					}
+				]
+			}
+		}
+	}
+}

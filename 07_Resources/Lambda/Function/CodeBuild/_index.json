@@ -1,0 +1,25 @@
+ {
+	"CalendarLambdaCodeBuild": {
+		"Type": "AWS::CodeBuild::Project",
+		"Properties": {
+			"Name": "calendar",
+			"ServiceRole": { "Fn::GetAtt": ["CodeBuildWebpageDocumentationRole", "Arn"] },
+			"TimeoutInMinutes": 60,
+			"Source": {
+				"Type": "CODEPIPELINE",
+				"BuildSpec": "buildspec.yml"
+			},
+			"Artifacts": {
+				"Type": "CODEPIPELINE"
+			},
+			"Environment": {
+				"Type": "LINUX_CONTAINER",
+				"ComputeType": "BUILD_GENERAL1_SMALL",
+				"Image": "aws/codebuild/standard:3.0",
+				"EnvironmentVariables": [
+					{ "Name": "AWS_REGION", "Type": "PLAINTEXT", "Value": { "Ref": "AWS::Region" } }
+				]
+			}
+		}
+	}
+}

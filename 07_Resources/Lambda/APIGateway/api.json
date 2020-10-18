@@ -1,0 +1,10 @@
+{
+	"HttpApi": {
+		"Type": "AWS::ApiGatewayV2::Api",
+		"Properties": {
+			"Name": "calendly",
+			"Description": "Get notifications from Calendly.",
+			"ProtocolType": "HTTP"
+		}
+	}
+}

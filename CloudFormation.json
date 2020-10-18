@@ -2,11 +2,19 @@
 	"AWSTemplateFormatVersion": "2010-09-09",
 	"Description": "Deploy all resources that are needed for the Terms of Service page.",
 	"Parameters": {
-		"CodePipelineArtifacts": {
+		"CodePipelineArtifactsParam": {
 			"Description": "The S3 bucket name where CodePipeline will store the artifacts (this is needed only by CP to work, and pass task results to the next stage).",
 			"Type": "String"
 		},
-		"GitHubToken": {
+		"DomainHomePage": {
+			"Description": "Type your domain for your project",
+			"Type": "String"
+		},
+		"S3BucketEmail": {
+			"Description": "This bucket is where we are goign to save the data from the contact page, to then be sent as an email.",
+			"Type": "String"
+		},
+		"GitHubTokenParam": {
 			"Description": "You need to create a Personal access tokens (https://github.com/settings/tokens) for CodePipeline to have access to the GitHub repo despite it being public.",
 			"Type": "String"
 		},
@@ -14,11 +22,7 @@
 			"Description": "The ARN of a SSL Certificate.",
 			"Type": "String"
 		},
-		"DomainHomePage": {
-			"Description": "Type your domain for your project",
-			"Type": "String"
-		},
-		"Stage": {
+		"StageParam": {
 			"Description": "Select what type of environment are you deploying.",
 			"Type": "String",
 			"AllowedValues": [
@@ -26,10 +30,6 @@
 				"development"
 			],
 			"Default": "development"
-		},
-		"S3BucketEmail": {
-			"Description": "This bucket is where we are goign to save the data from the contact page, to then be sent as an email.",
-			"Type": "String"
 		}
 	},
 	"Resources": {
@@ -109,6 +109,88 @@
 							]
 						}
 					}
+				}
+			}
+		},
+		"HttpApiIntegration": {
+			"Type": "AWS::ApiGatewayV2::Integration",
+			"Properties": {
+				"ApiId": {
+					"Ref": "HttpApi"
+				},
+				"Description": "Affiliate Tracking",
+				"IntegrationType": "AWS_PROXY",
+				"IntegrationUri": {
+					"Fn::Join": [
+						"",
+						[
+							"arn",
+							":",
+							"aws",
+							":",
+							"apigateway",
+							":",
+							{
+								"Ref": "AWS::Region"
+							},
+							":",
+							"lambda",
+							":",
+							"path/2015-03-31/functions/",
+							{
+								"Fn::GetAtt": [
+									"CalendarLambda",
+									"Arn"
+								]
+							},
+							"/invocations"
+						]
+					]
+				},
+				"IntegrationMethod": "POST",
+				"PayloadFormatVersion": "1.0"
+			}
+		},
+		"HttpApiStage": {
+			"Type": "AWS::ApiGatewayV2::Stage",
+			"Properties": {
+				"ApiId": {
+					"Ref": "HttpApi"
+				},
+				"AutoDeploy": true,
+				"Description": "Default",
+				"StageName": "$default"
+			}
+		},
+		"HttpApi": {
+			"Type": "AWS::ApiGatewayV2::Api",
+			"Properties": {
+				"Name": "calendly",
+				"Description": "Get notifications from Calendly.",
+				"ProtocolType": "HTTP"
+			}
+		},
+		"HttpApiRoute": {
+			"Type": "AWS::ApiGatewayV2::Route",
+			"DependsOn": [
+				"HttpApiIntegration"
+			],
+			"Properties": {
+				"ApiId": {
+					"Ref": "HttpApi"
+				},
+				"RouteKey": "POST /",
+				"AuthorizationType": "NONE",
+				"Target": {
+					"Fn::Join": [
+						"/",
+						[
+							"integrations",
+							{
+								"Ref": "HttpApiIntegration"
+							}
+						]
+					]
 				}
 			}
 		},
@@ -264,6 +346,29 @@
 				}
 			}
 		},
+		"CodeBuildWebpageDocumentationPolicyCloudFrontList": {
+			"Type": "AWS::IAM::Policy",
+			"Properties": {
+				"Roles": [
+					{
+						"Ref": "CodeBuildWebpageDocumentationRole"
+					}
+				],
+				"PolicyName": "cloud_front_list",
+				"PolicyDocument": {
+					"Version": "2012-10-17",
+					"Statement": [
+						{
+							"Effect": "Allow",
+							"Action": [
+								"cloudfront:ListDistributions"
+							],
+							"Resource": "*"
+						}
+					]
+				}
+			}
+		},
 		"CodeBuildWebpageDocumentationPolicyCWL": {
 			"Type": "AWS::IAM::Policy",
 			"Properties": {
@@ -293,7 +398,7 @@
 				}
 			}
 		},
-		"CodeBuildWebpageDocumentationPolicyCloudFrontList": {
+		"CodeBuildWebpageDocumentationPolicyS3": {
 			"Type": "AWS::IAM::Policy",
 			"Properties": {
 				"Roles": [
@@ -301,16 +406,16 @@
 						"Ref": "CodeBuildWebpageDocumentationRole"
 					}
 				],
-				"PolicyName": "cloud_front_list",
+				"PolicyName": "s3_artifact_access",
 				"PolicyDocument": {
 					"Version": "2012-10-17",
 					"Statement": [
 						{
 							"Effect": "Allow",
-							"Action": [
-								"cloudfront:ListDistributions"
-							],
-							"Resource": "*"
+							"Action": "s3:*",
+							"Resource": {
+								"Fn::Sub": "arn:aws:s3:::${CodePipelineArtifactsParam}/*"
+							}
 						}
 					]
 				}
@@ -342,64 +447,13 @@
 				}
 			}
 		},
-		"CodeBuildWebpageDocumentationPolicyS3": {
-			"Type": "AWS::IAM::Policy",
-			"Properties": {
-				"Roles": [
-					{
-						"Ref": "CodeBuildWebpageDocumentationRole"
-					}
-				],
-				"PolicyName": "s3_artifact_access",
-				"PolicyDocument": {
-					"Version": "2012-10-17",
-					"Statement": [
-						{
-							"Effect": "Allow",
-							"Action": "s3:*",
-							"Resource": {
-								"Fn::Sub": "arn:aws:s3:::${CodePipelineArtifacts}/*"
-							}
-						}
-					]
-				}
-			}
-		},
-		"PipelineWebpageDocumentationWebhook": {
-			"Type": "AWS::CodePipeline::Webhook",
-			"Properties": {
-				"Authentication": "GITHUB_HMAC",
-				"AuthenticationConfiguration": {
-					"SecretToken": {
-						"Ref": "GitHubToken"
-					}
-				},
-				"Filters": [
-					{
-						"JsonPath": "$.ref",
-						"MatchEquals": "refs/heads/{Branch}"
-					}
-				],
-				"TargetPipeline": {
-					"Ref": "PipelineWebpageDocumentation"
-				},
-				"TargetAction": "Material",
-				"TargetPipelineVersion": {
-					"Fn::GetAtt": [
-						"PipelineWebpageDocumentation",
-						"Version"
-					]
-				},
-				"RegisterWithThirdParty": true
-			}
-		},
 		"PipelineWebpageDocumentation": {
 			"Type": "AWS::CodePipeline::Pipeline",
 			"Properties": {
 				"Name": "webpage_consulting",
 				"ArtifactStore": {
 					"Location": {
-						"Ref": "CodePipelineArtifacts"
+						"Ref": "CodePipelineArtifactsParam"
 					},
 					"Type": "S3"
 				},
@@ -426,11 +480,11 @@
 									"Owner": "0x4447-office",
 									"Repo": "0x4447_webpage_consulting",
 									"Branch": {
-										"Ref": "Stage"
+										"Ref": "StageParam"
 									},
 									"PollForSourceChanges": false,
 									"OAuthToken": {
-										"Ref": "GitHubToken"
+										"Ref": "GitHubTokenParam"
 									}
 								},
 								"OutputArtifacts": [
@@ -487,6 +541,34 @@
 				}
 			}
 		},
+		"PipelineWebpageDocumentationWebhook": {
+			"Type": "AWS::CodePipeline::Webhook",
+			"Properties": {
+				"Authentication": "GITHUB_HMAC",
+				"AuthenticationConfiguration": {
+					"SecretToken": {
+						"Ref": "GitHubTokenParam"
+					}
+				},
+				"Filters": [
+					{
+						"JsonPath": "$.ref",
+						"MatchEquals": "refs/heads/{Branch}"
+					}
+				],
+				"TargetPipeline": {
+					"Ref": "PipelineWebpageDocumentation"
+				},
+				"TargetAction": "Material",
+				"TargetPipelineVersion": {
+					"Fn::GetAtt": [
+						"PipelineWebpageDocumentation",
+						"Version"
+					]
+				},
+				"RegisterWithThirdParty": true
+			}
+		},
 		"PipelineWebpageDocumentationPolicyCB": {
 			"Type": "AWS::IAM::Policy",
 			"Properties": {
@@ -529,7 +611,7 @@
 							"Effect": "Allow",
 							"Action": "s3:*",
 							"Resource": {
-								"Fn::Sub": "arn:aws:s3:::${CodePipelineArtifacts}/*"
+								"Fn::Sub": "arn:aws:s3:::0x4447-web-us-east-1-smtp/*"
 							}
 						}
 					]
@@ -541,29 +623,6 @@
 			"Properties": {
 				"IdentityPoolName": "zer0x_consulting",
 				"AllowUnauthenticatedIdentities": true
-			}
-		},
-		"CognitoIdentityPoolPolicyS3": {
-			"Type": "AWS::IAM::Policy",
-			"Properties": {
-				"PolicyName": "s3",
-				"Roles": [
-					{
-						"Ref": "CognitoIDPUnauthenticatedRole"
-					}
-				],
-				"PolicyDocument": {
-					"Version": "2012-10-17",
-					"Statement": [
-						{
-							"Effect": "Allow",
-							"Action": "s3:PutObject",
-							"Resource": {
-								"Fn::Sub": "arn:aws:s3:::${S3BucketEmail}/*"
-							}
-						}
-					]
-				}
 			}
 		},
 		"CognitoIdentityPoolRoleAttachment": {
@@ -585,6 +644,34 @@
 							"Arn"
 						]
 					}
+				}
+			}
+		},
+		"CognitoIDPAuthenticatedRole": {
+			"Type": "AWS::IAM::Role",
+			"Properties": {
+				"RoleName": "webpage_consulting_cognito_identitypool_authenticated",
+				"AssumeRolePolicyDocument": {
+					"Version": "2012-10-17",
+					"Statement": [
+						{
+							"Effect": "Allow",
+							"Principal": {
+								"Federated": "cognito-identity.amazonaws.com"
+							},
+							"Action": "sts:AssumeRoleWithWebIdentity",
+							"Condition": {
+								"StringEquals": {
+									"cognito-identity.amazonaws.com:aud": {
+										"Ref": "CognitoIdentityPool"
+									}
+								},
+								"ForAnyValue:StringLike": {
+									"cognito-identity.amazonaws.com:amr": "authenticated"
+								}
+							}
+						}
+					]
 				}
 			}
 		},
@@ -616,29 +703,348 @@
 				}
 			}
 		},
-		"CognitoIDPAuthenticatedRole": {
+		"CognitoIdentityPoolPolicyS3": {
+			"Type": "AWS::IAM::Policy",
+			"Properties": {
+				"PolicyName": "s3",
+				"Roles": [
+					{
+						"Ref": "CognitoIDPUnauthenticatedRole"
+					}
+				],
+				"PolicyDocument": {
+					"Version": "2012-10-17",
+					"Statement": [
+						{
+							"Effect": "Allow",
+							"Action": "s3:PutObject",
+							"Resource": {
+								"Fn::Sub": "arn:aws:s3:::${S3BucketEmail}/*"
+							}
+						}
+					]
+				}
+			}
+		},
+		"CodePipelinePolicyCB": {
+			"Type": "AWS::IAM::Policy",
+			"Properties": {
+				"PolicyName": "Default",
+				"Roles": [
+					{
+						"Ref": "CalendarCodePipelineRole"
+					}
+				],
+				"PolicyDocument": {
+					"Version": "2012-10-17",
+					"Statement": [
+						{
+							"Effect": "Allow",
+							"Action": [
+								"codebuild:BatchGetBuilds",
+								"codebuild:StartBuild"
+							],
+							"Resource": {
+								"Fn::Sub": "arn:aws:codebuild:${AWS::Region}:${AWS::AccountId}:project/*"
+							}
+						},
+						{
+							"Effect": "Allow",
+							"Action": "s3:*",
+							"Resource": {
+								"Fn::Sub": "arn:aws:s3:::${CodePipelineArtifactsParam}/*"
+							}
+						}
+					]
+				}
+			}
+		},
+		"CalendarCodePipelineRole": {
 			"Type": "AWS::IAM::Role",
 			"Properties": {
-				"RoleName": "webpage_consulting_cognito_identitypool_authenticated",
+				"RoleName": "calendar_code_pipeline",
 				"AssumeRolePolicyDocument": {
 					"Version": "2012-10-17",
 					"Statement": [
 						{
 							"Effect": "Allow",
 							"Principal": {
-								"Federated": "cognito-identity.amazonaws.com"
+								"Service": "codepipeline.amazonaws.com"
 							},
-							"Action": "sts:AssumeRoleWithWebIdentity",
-							"Condition": {
-								"StringEquals": {
-									"cognito-identity.amazonaws.com:aud": {
-										"Ref": "CognitoIdentityPool"
+							"Action": "sts:AssumeRole"
+						}
+					]
+				}
+			}
+		},
+		"CalendarCodePipelineWebhook": {
+			"Type": "AWS::CodePipeline::Webhook",
+			"Properties": {
+				"Authentication": "GITHUB_HMAC",
+				"AuthenticationConfiguration": {
+					"SecretToken": {
+						"Ref": "GitHubTokenParam"
+					}
+				},
+				"Filters": [
+					{
+						"JsonPath": "$.ref",
+						"MatchEquals": "refs/heads/{Branch}"
+					}
+				],
+				"TargetPipeline": {
+					"Ref": "CalendarCodePipeline"
+				},
+				"TargetAction": "Material",
+				"TargetPipelineVersion": {
+					"Fn::GetAtt": [
+						"CalendarCodePipeline",
+						"Version"
+					]
+				},
+				"RegisterWithThirdParty": true
+			}
+		},
+		"CalendarCodePipeline": {
+			"Type": "AWS::CodePipeline::Pipeline",
+			"DependsOn": "CalendarCodePipelineRole",
+			"Properties": {
+				"Name": "calendar",
+				"ArtifactStore": {
+					"Location": {
+						"Ref": "CodePipelineArtifactsParam"
+					},
+					"Type": "S3"
+				},
+				"RoleArn": {
+					"Fn::GetAtt": [
+						"CalendarCodePipelineRole",
+						"Arn"
+					]
+				},
+				"Stages": [
+					{
+						"Name": "Get",
+						"Actions": [
+							{
+								"Name": "Material",
+								"RunOrder": 1,
+								"ActionTypeId": {
+									"Category": "Source",
+									"Owner": "ThirdParty",
+									"Provider": "GitHub",
+									"Version": "1"
+								},
+								"Configuration": {
+									"Owner": "0x4447-office",
+									"Repo": "0x4447_webpage_consulting_lambda_chime",
+									"Branch": {
+										"Ref": "StageParam"
+									},
+									"PollForSourceChanges": false,
+									"OAuthToken": {
+										"Ref": "GitHubTokenParam"
 									}
 								},
-								"ForAnyValue:StringLike": {
-									"cognito-identity.amazonaws.com:amr": "authenticated"
+								"OutputArtifacts": [
+									{
+										"Name": "source_code"
+									}
+								]
+							}
+						]
+					},
+					{
+						"Name": "Cast",
+						"Actions": [
+							{
+								"Name": "Mold",
+								"RunOrder": 1,
+								"InputArtifacts": [
+									{
+										"Name": "source_code"
+									}
+								],
+								"Configuration": {
+									"ProjectName": {
+										"Ref": "CalendarLambdaCodeBuild"
+									}
+								},
+								"ActionTypeId": {
+									"Category": "Build",
+									"Owner": "AWS",
+									"Provider": "CodeBuild",
+									"Version": "1"
 								}
 							}
+						]
+					}
+				]
+			}
+		},
+		"CalendarLambdaCodeBuild": {
+			"Type": "AWS::CodeBuild::Project",
+			"Properties": {
+				"Name": "calendar",
+				"ServiceRole": {
+					"Fn::GetAtt": [
+						"CodeBuildWebpageDocumentationRole",
+						"Arn"
+					]
+				},
+				"TimeoutInMinutes": 60,
+				"Source": {
+					"Type": "CODEPIPELINE",
+					"BuildSpec": "buildspec.yml"
+				},
+				"Artifacts": {
+					"Type": "CODEPIPELINE"
+				},
+				"Environment": {
+					"Type": "LINUX_CONTAINER",
+					"ComputeType": "BUILD_GENERAL1_SMALL",
+					"Image": "aws/codebuild/standard:3.0",
+					"EnvironmentVariables": [
+						{
+							"Name": "AWS_REGION",
+							"Type": "PLAINTEXT",
+							"Value": {
+								"Ref": "AWS::Region"
+							}
+						}
+					]
+				}
+			}
+		},
+		"CalendarLambdaCodeBuildRole": {
+			"Type": "AWS::IAM::Role",
+			"Properties": {
+				"RoleName": "calendar_codebuild",
+				"AssumeRolePolicyDocument": {
+					"Version": "2012-10-17",
+					"Statement": [
+						{
+							"Effect": "Allow",
+							"Principal": {
+								"Service": "codebuild.amazonaws.com"
+							},
+							"Action": "sts:AssumeRole"
+						}
+					]
+				}
+			}
+		},
+		"CalendarLambdaCodeBuildLambda": {
+			"Type": "AWS::IAM::Policy",
+			"Properties": {
+				"Roles": [
+					{
+						"Ref": "CalendarLambdaCodeBuildRole"
+					}
+				],
+				"PolicyName": "lambda",
+				"PolicyDocument": {
+					"Version": "2012-10-17",
+					"Statement": [
+						{
+							"Effect": "Allow",
+							"Action": "lambda:*",
+							"Resource": "*"
+						}
+					]
+				}
+			}
+		},
+		"CalendarLambda": {
+			"Type": "AWS::Lambda::Function",
+			"Properties": {
+				"FunctionName": "calendar",
+				"Code": {
+					"ZipFile": {
+						"Fn::Join": [
+							"",
+							[
+								"exports.handler = async (event) => {return true;};"
+							]
+						]
+					}
+				},
+				"Handler": "index.handler",
+				"MemorySize": 128,
+				"Role": {
+					"Fn::GetAtt": [
+						"CalendarLambdaRole",
+						"Arn"
+					]
+				},
+				"Runtime": "nodejs12.x",
+				"Timeout": 60,
+				"Environment": {
+					"Variables": {
+						"STAGE": {
+							"Ref": "StageParam"
+						}
+					}
+				}
+			}
+		},
+		"CalendarLambdaPermission": {
+			"Type": "AWS::Lambda::Permission",
+			"Properties": {
+				"Action": "lambda:InvokeFunction",
+				"FunctionName": {
+					"Fn::GetAtt": [
+						"CalendarLambda",
+						"Arn"
+					]
+				},
+				"Principal": "apigateway.amazonaws.com",
+				"SourceArn": {
+					"Fn::Sub": "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${HttpApi}/*/*"
+				}
+			}
+		},
+		"CalendarLambdaRole": {
+			"Type": "AWS::IAM::Role",
+			"Properties": {
+				"RoleName": "calendar_lambda",
+				"AssumeRolePolicyDocument": {
+					"Version": "2012-10-17",
+					"Statement": [
+						{
+							"Effect": "Allow",
+							"Principal": {
+								"Service": "lambda.amazonaws.com"
+							},
+							"Action": "sts:AssumeRole"
+						}
+					]
+				},
+				"ManagedPolicyArns": [
+					"arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+				]
+			}
+		},
+		"CalendarLambdaPolicyS3": {
+			"Type": "AWS::IAM::Policy",
+			"Properties": {
+				"Roles": [
+					{
+						"Ref": "CalendarLambdaRole"
+					}
+				],
+				"PolicyName": "s3",
+				"PolicyDocument": {
+					"Version": "2012-10-17",
+					"Statement": [
+						{
+							"Effect": "Allow",
+							"Action": "S3:PutObject",
+							"Resource": [
+								{
+									"Fn::Sub": "arn:aws:s3:::0x4447-web-us-east-1-smtp/*"
+								}
+							]
 						}
 					]
 				}
