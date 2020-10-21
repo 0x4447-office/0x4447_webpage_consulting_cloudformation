@@ -3,7 +3,7 @@
 		"Type": "AWS::CodeBuild::Project",
 		"Properties": {
 			"Name": "calendar",
-			"ServiceRole": { "Fn::GetAtt": ["CodeBuildWebpageDocumentationRole", "Arn"] },
+			"ServiceRole": { "Fn::GetAtt": ["CalendarLambdaCodeBuildRole", "Arn"] },
 			"TimeoutInMinutes": 60,
 			"Source": {
 				"Type": "CODEPIPELINE",

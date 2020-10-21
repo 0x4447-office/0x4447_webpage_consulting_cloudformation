@@ -14,10 +14,6 @@
 			"Description": "This bucket is where we are goign to save the data from the contact page, to then be sent as an email.",
 			"Type": "String"
 		},
-		"GitHubTokenParam": {
-			"Description": "You need to create a Personal access tokens (https://github.com/settings/tokens) for CodePipeline to have access to the GitHub repo despite it being public.",
-			"Type": "String"
-		},
 		"CertificateARN": {
 			"Description": "The ARN of a SSL Certificate.",
 			"Type": "String"
@@ -30,6 +26,10 @@
 				"development"
 			],
 			"Default": "development"
+		},
+		"GitHubTokenParam": {
+			"Description": "You need to create a Personal access tokens (https://github.com/settings/tokens) for CodePipeline to have access to the GitHub repo despite it being public.",
+			"Type": "String"
 		}
 	},
 	"Resources": {
@@ -109,88 +109,6 @@
 							]
 						}
 					}
-				}
-			}
-		},
-		"HttpApiIntegration": {
-			"Type": "AWS::ApiGatewayV2::Integration",
-			"Properties": {
-				"ApiId": {
-					"Ref": "HttpApi"
-				},
-				"Description": "Affiliate Tracking",
-				"IntegrationType": "AWS_PROXY",
-				"IntegrationUri": {
-					"Fn::Join": [
-						"",
-						[
-							"arn",
-							":",
-							"aws",
-							":",
-							"apigateway",
-							":",
-							{
-								"Ref": "AWS::Region"
-							},
-							":",
-							"lambda",
-							":",
-							"path/2015-03-31/functions/",
-							{
-								"Fn::GetAtt": [
-									"CalendarLambda",
-									"Arn"
-								]
-							},
-							"/invocations"
-						]
-					]
-				},
-				"IntegrationMethod": "POST",
-				"PayloadFormatVersion": "1.0"
-			}
-		},
-		"HttpApiStage": {
-			"Type": "AWS::ApiGatewayV2::Stage",
-			"Properties": {
-				"ApiId": {
-					"Ref": "HttpApi"
-				},
-				"AutoDeploy": true,
-				"Description": "Default",
-				"StageName": "$default"
-			}
-		},
-		"HttpApi": {
-			"Type": "AWS::ApiGatewayV2::Api",
-			"Properties": {
-				"Name": "calendly",
-				"Description": "Get notifications from Calendly.",
-				"ProtocolType": "HTTP"
-			}
-		},
-		"HttpApiRoute": {
-			"Type": "AWS::ApiGatewayV2::Route",
-			"DependsOn": [
-				"HttpApiIntegration"
-			],
-			"Properties": {
-				"ApiId": {
-					"Ref": "HttpApi"
-				},
-				"RouteKey": "POST /",
-				"AuthorizationType": "NONE",
-				"Target": {
-					"Fn::Join": [
-						"/",
-						[
-							"integrations",
-							{
-								"Ref": "HttpApiIntegration"
-							}
-						]
-					]
 				}
 			}
 		},
@@ -625,6 +543,29 @@
 				"AllowUnauthenticatedIdentities": true
 			}
 		},
+		"CognitoIdentityPoolPolicyS3": {
+			"Type": "AWS::IAM::Policy",
+			"Properties": {
+				"PolicyName": "s3",
+				"Roles": [
+					{
+						"Ref": "CognitoIDPUnauthenticatedRole"
+					}
+				],
+				"PolicyDocument": {
+					"Version": "2012-10-17",
+					"Statement": [
+						{
+							"Effect": "Allow",
+							"Action": "s3:PutObject",
+							"Resource": {
+								"Fn::Sub": "arn:aws:s3:::${S3BucketEmail}/*"
+							}
+						}
+					]
+				}
+			}
+		},
 		"CognitoIdentityPoolRoleAttachment": {
 			"Type": "AWS::Cognito::IdentityPoolRoleAttachment",
 			"Properties": {
@@ -703,106 +644,86 @@
 				}
 			}
 		},
-		"CognitoIdentityPoolPolicyS3": {
-			"Type": "AWS::IAM::Policy",
+		"HttpApi": {
+			"Type": "AWS::ApiGatewayV2::Api",
 			"Properties": {
-				"PolicyName": "s3",
-				"Roles": [
-					{
-						"Ref": "CognitoIDPUnauthenticatedRole"
-					}
-				],
-				"PolicyDocument": {
-					"Version": "2012-10-17",
-					"Statement": [
-						{
-							"Effect": "Allow",
-							"Action": "s3:PutObject",
-							"Resource": {
-								"Fn::Sub": "arn:aws:s3:::${S3BucketEmail}/*"
-							}
-						}
-					]
-				}
+				"Name": "calendly",
+				"Description": "Get notifications from Calendly.",
+				"ProtocolType": "HTTP"
 			}
 		},
-		"CodePipelinePolicyCB": {
-			"Type": "AWS::IAM::Policy",
+		"HttpApiIntegration": {
+			"Type": "AWS::ApiGatewayV2::Integration",
 			"Properties": {
-				"PolicyName": "Default",
-				"Roles": [
-					{
-						"Ref": "CalendarCodePipelineRole"
-					}
-				],
-				"PolicyDocument": {
-					"Version": "2012-10-17",
-					"Statement": [
-						{
-							"Effect": "Allow",
-							"Action": [
-								"codebuild:BatchGetBuilds",
-								"codebuild:StartBuild"
-							],
-							"Resource": {
-								"Fn::Sub": "arn:aws:codebuild:${AWS::Region}:${AWS::AccountId}:project/*"
-							}
-						},
-						{
-							"Effect": "Allow",
-							"Action": "s3:*",
-							"Resource": {
-								"Fn::Sub": "arn:aws:s3:::${CodePipelineArtifactsParam}/*"
-							}
-						}
-					]
-				}
-			}
-		},
-		"CalendarCodePipelineRole": {
-			"Type": "AWS::IAM::Role",
-			"Properties": {
-				"RoleName": "calendar_code_pipeline",
-				"AssumeRolePolicyDocument": {
-					"Version": "2012-10-17",
-					"Statement": [
-						{
-							"Effect": "Allow",
-							"Principal": {
-								"Service": "codepipeline.amazonaws.com"
+				"ApiId": {
+					"Ref": "HttpApi"
+				},
+				"Description": "Affiliate Tracking",
+				"IntegrationType": "AWS_PROXY",
+				"IntegrationUri": {
+					"Fn::Join": [
+						"",
+						[
+							"arn",
+							":",
+							"aws",
+							":",
+							"apigateway",
+							":",
+							{
+								"Ref": "AWS::Region"
 							},
-							"Action": "sts:AssumeRole"
-						}
+							":",
+							"lambda",
+							":",
+							"path/2015-03-31/functions/",
+							{
+								"Fn::GetAtt": [
+									"CalendarLambda",
+									"Arn"
+								]
+							},
+							"/invocations"
+						]
+					]
+				},
+				"IntegrationMethod": "POST",
+				"PayloadFormatVersion": "1.0"
+			}
+		},
+		"HttpApiRoute": {
+			"Type": "AWS::ApiGatewayV2::Route",
+			"DependsOn": [
+				"HttpApiIntegration"
+			],
+			"Properties": {
+				"ApiId": {
+					"Ref": "HttpApi"
+				},
+				"RouteKey": "POST /",
+				"AuthorizationType": "NONE",
+				"Target": {
+					"Fn::Join": [
+						"/",
+						[
+							"integrations",
+							{
+								"Ref": "HttpApiIntegration"
+							}
+						]
 					]
 				}
 			}
 		},
-		"CalendarCodePipelineWebhook": {
-			"Type": "AWS::CodePipeline::Webhook",
+		"HttpApiStage": {
+			"Type": "AWS::ApiGatewayV2::Stage",
 			"Properties": {
-				"Authentication": "GITHUB_HMAC",
-				"AuthenticationConfiguration": {
-					"SecretToken": {
-						"Ref": "GitHubTokenParam"
-					}
+				"ApiId": {
+					"Ref": "HttpApi"
 				},
-				"Filters": [
-					{
-						"JsonPath": "$.ref",
-						"MatchEquals": "refs/heads/{Branch}"
-					}
-				],
-				"TargetPipeline": {
-					"Ref": "CalendarCodePipeline"
-				},
-				"TargetAction": "Material",
-				"TargetPipelineVersion": {
-					"Fn::GetAtt": [
-						"CalendarCodePipeline",
-						"Version"
-					]
-				},
-				"RegisterWithThirdParty": true
+				"AutoDeploy": true,
+				"Description": "Default",
+				"StageName": "$default"
 			}
 		},
 		"CalendarCodePipeline": {
@@ -882,51 +803,50 @@
 				]
 			}
 		},
-		"CalendarLambdaCodeBuild": {
-			"Type": "AWS::CodeBuild::Project",
+		"CodePipelinePolicyCB": {
+			"Type": "AWS::IAM::Policy",
 			"Properties": {
-				"Name": "calendar",
-				"ServiceRole": {
-					"Fn::GetAtt": [
-						"CodeBuildWebpageDocumentationRole",
-						"Arn"
-					]
-				},
-				"TimeoutInMinutes": 60,
-				"Source": {
-					"Type": "CODEPIPELINE",
-					"BuildSpec": "buildspec.yml"
-				},
-				"Artifacts": {
-					"Type": "CODEPIPELINE"
-				},
-				"Environment": {
-					"Type": "LINUX_CONTAINER",
-					"ComputeType": "BUILD_GENERAL1_SMALL",
-					"Image": "aws/codebuild/standard:3.0",
-					"EnvironmentVariables": [
+				"PolicyName": "Default",
+				"Roles": [
+					{
+						"Ref": "CalendarCodePipelineRole"
+					}
+				],
+				"PolicyDocument": {
+					"Version": "2012-10-17",
+					"Statement": [
 						{
-							"Name": "AWS_REGION",
-							"Type": "PLAINTEXT",
-							"Value": {
-								"Ref": "AWS::Region"
+							"Effect": "Allow",
+							"Action": [
+								"codebuild:BatchGetBuilds",
+								"codebuild:StartBuild"
+							],
+							"Resource": {
+								"Fn::Sub": "arn:aws:codebuild:${AWS::Region}:${AWS::AccountId}:project/*"
+							}
+						},
+						{
+							"Effect": "Allow",
+							"Action": "s3:*",
+							"Resource": {
+								"Fn::Sub": "arn:aws:s3:::${CodePipelineArtifactsParam}/*"
 							}
 						}
 					]
 				}
 			}
 		},
-		"CalendarLambdaCodeBuildRole": {
+		"CalendarCodePipelineRole": {
 			"Type": "AWS::IAM::Role",
 			"Properties": {
-				"RoleName": "calendar_codebuild",
+				"RoleName": "calendar_code_pipeline",
 				"AssumeRolePolicyDocument": {
 					"Version": "2012-10-17",
 					"Statement": [
 						{
 							"Effect": "Allow",
 							"Principal": {
-								"Service": "codebuild.amazonaws.com"
+								"Service": "codepipeline.amazonaws.com"
 							},
 							"Action": "sts:AssumeRole"
 						}
@@ -934,25 +854,32 @@
 				}
 			}
 		},
-		"CalendarLambdaCodeBuildLambda": {
-			"Type": "AWS::IAM::Policy",
+		"CalendarCodePipelineWebhook": {
+			"Type": "AWS::CodePipeline::Webhook",
 			"Properties": {
-				"Roles": [
+				"Authentication": "GITHUB_HMAC",
+				"AuthenticationConfiguration": {
+					"SecretToken": {
+						"Ref": "GitHubTokenParam"
+					}
+				},
+				"Filters": [
 					{
-						"Ref": "CalendarLambdaCodeBuildRole"
+						"JsonPath": "$.ref",
+						"MatchEquals": "refs/heads/{Branch}"
 					}
 				],
-				"PolicyName": "lambda",
-				"PolicyDocument": {
-					"Version": "2012-10-17",
-					"Statement": [
-						{
-							"Effect": "Allow",
-							"Action": "lambda:*",
-							"Resource": "*"
-						}
+				"TargetPipeline": {
+					"Ref": "CalendarCodePipeline"
+				},
+				"TargetAction": "Material",
+				"TargetPipelineVersion": {
+					"Fn::GetAtt": [
+						"CalendarCodePipeline",
+						"Version"
 					]
-				}
+				},
+				"RegisterWithThirdParty": true
 			}
 		},
 		"CalendarLambda": {
@@ -1048,6 +975,114 @@
 						}
 					]
 				}
+			}
+		},
+		"CalendarLambdaCodeBuild": {
+			"Type": "AWS::CodeBuild::Project",
+			"Properties": {
+				"Name": "calendar",
+				"ServiceRole": {
+					"Fn::GetAtt": [
+						"CalendarLambdaCodeBuildRole",
+						"Arn"
+					]
+				},
+				"TimeoutInMinutes": 60,
+				"Source": {
+					"Type": "CODEPIPELINE",
+					"BuildSpec": "buildspec.yml"
+				},
+				"Artifacts": {
+					"Type": "CODEPIPELINE"
+				},
+				"Environment": {
+					"Type": "LINUX_CONTAINER",
+					"ComputeType": "BUILD_GENERAL1_SMALL",
+					"Image": "aws/codebuild/standard:3.0",
+					"EnvironmentVariables": [
+						{
+							"Name": "AWS_REGION",
+							"Type": "PLAINTEXT",
+							"Value": {
+								"Ref": "AWS::Region"
+							}
+						}
+					]
+				}
+			}
+		},
+		"CalendarLambdaCodeBuildRole": {
+			"Type": "AWS::IAM::Role",
+			"Properties": {
+				"RoleName": "calendar_codebuild",
+				"AssumeRolePolicyDocument": {
+					"Version": "2012-10-17",
+					"Statement": [
+						{
+							"Effect": "Allow",
+							"Principal": {
+								"Service": "codebuild.amazonaws.com"
+							},
+							"Action": "sts:AssumeRole"
+						}
+					]
+				},
+				"Policies": [
+					{
+						"PolicyName": "cloudwatch_logs",
+						"PolicyDocument": {
+							"Version": "2012-10-17",
+							"Statement": [
+								{
+									"Effect": "Allow",
+									"Action": [
+										"logs:CreateLogGroup",
+										"logs:CreateLogStream",
+										"logs:PutLogEvents"
+									],
+									"Resource": [
+										{
+											"Fn::Sub": "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/*"
+										}
+									]
+								}
+							]
+						}
+					},
+					{
+						"PolicyName": "s3_artifact",
+						"PolicyDocument": {
+							"Version": "2012-10-17",
+							"Statement": [
+								{
+									"Effect": "Allow",
+									"Action": "s3:GetObject",
+									"Resource": {
+										"Fn::Sub": "arn:aws:s3:::${CodePipelineArtifactsParam}/*"
+									}
+								}
+							]
+						}
+					},
+					{
+						"PolicyName": "lambda_update",
+						"PolicyDocument": {
+							"Version": "2012-10-17",
+							"Statement": [
+								{
+									"Effect": "Allow",
+									"Action": "lambda:UpdateFunctionCode",
+									"Resource": {
+										"Fn::GetAtt": [
+											"CalendarLambda",
+											"Arn"
+										]
+									}
+								}
+							]
+						}
+					}
+				]
 			}
 		}
 	}
