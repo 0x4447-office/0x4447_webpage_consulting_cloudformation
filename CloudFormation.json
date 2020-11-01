@@ -2,20 +2,24 @@
 	"AWSTemplateFormatVersion": "2010-09-09",
 	"Description": "Deploy all resources that are needed for the Terms of Service page.",
 	"Parameters": {
+		"DomainHomePage": {
+			"Description": "Type your domain for your project",
+			"Type": "String"
+		},
 		"CodePipelineArtifactsParam": {
 			"Description": "The S3 bucket name where CodePipeline will store the artifacts (this is needed only by CP to work, and pass task results to the next stage).",
 			"Type": "String"
 		},
-		"DomainHomePage": {
-			"Description": "Type your domain for your project",
+		"CertificateARN": {
+			"Description": "The ARN of a SSL Certificate.",
 			"Type": "String"
 		},
 		"S3BucketEmail": {
 			"Description": "This bucket is where we are goign to save the data from the contact page, to then be sent as an email.",
 			"Type": "String"
 		},
-		"CertificateARN": {
-			"Description": "The ARN of a SSL Certificate.",
+		"GitHubTokenParam": {
+			"Description": "You need to create a Personal access tokens (https://github.com/settings/tokens) for CodePipeline to have access to the GitHub repo despite it being public.",
 			"Type": "String"
 		},
 		"StageParam": {
@@ -26,10 +30,6 @@
 				"development"
 			],
 			"Default": "development"
-		},
-		"GitHubTokenParam": {
-			"Description": "You need to create a Personal access tokens (https://github.com/settings/tokens) for CodePipeline to have access to the GitHub repo despite it being public.",
-			"Type": "String"
 		}
 	},
 	"Resources": {
@@ -487,6 +487,29 @@
 				"RegisterWithThirdParty": true
 			}
 		},
+		"PipelineWebpageDocumentationPolicyS3": {
+			"Type": "AWS::IAM::Policy",
+			"Properties": {
+				"PolicyName": "s3",
+				"Roles": [
+					{
+						"Ref": "PipelineWebpageDocumentationRole"
+					}
+				],
+				"PolicyDocument": {
+					"Version": "2012-10-17",
+					"Statement": [
+						{
+							"Effect": "Allow",
+							"Action": "s3:*",
+							"Resource": {
+								"Fn::Sub": "arn:aws:s3:::${CodePipelineArtifactsParam}/*"
+							}
+						}
+					]
+				}
+			}
+		},
 		"PipelineWebpageDocumentationPolicyCB": {
 			"Type": "AWS::IAM::Policy",
 			"Properties": {
@@ -507,29 +530,6 @@
 							],
 							"Resource": {
 								"Fn::Sub": "arn:aws:codebuild:${AWS::Region}:${AWS::AccountId}:project/${CodeBuildWebpageDocumentation}"
-							}
-						}
-					]
-				}
-			}
-		},
-		"PipelineWebpageDocumentationPolicyS3": {
-			"Type": "AWS::IAM::Policy",
-			"Properties": {
-				"PolicyName": "s3",
-				"Roles": [
-					{
-						"Ref": "PipelineWebpageDocumentationRole"
-					}
-				],
-				"PolicyDocument": {
-					"Version": "2012-10-17",
-					"Statement": [
-						{
-							"Effect": "Allow",
-							"Action": "s3:*",
-							"Resource": {
-								"Fn::Sub": "arn:aws:s3:::0x4447-web-us-east-1-smtp/*"
 							}
 						}
 					]
@@ -644,12 +644,39 @@
 				}
 			}
 		},
-		"HttpApi": {
-			"Type": "AWS::ApiGatewayV2::Api",
+		"HttpApiStage": {
+			"Type": "AWS::ApiGatewayV2::Stage",
 			"Properties": {
-				"Name": "calendly",
-				"Description": "Get notifications from Calendly.",
-				"ProtocolType": "HTTP"
+				"ApiId": {
+					"Ref": "HttpApi"
+				},
+				"AutoDeploy": true,
+				"Description": "Default",
+				"StageName": "$default"
+			}
+		},
+		"HttpApiRoute": {
+			"Type": "AWS::ApiGatewayV2::Route",
+			"DependsOn": [
+				"HttpApiIntegration"
+			],
+			"Properties": {
+				"ApiId": {
+					"Ref": "HttpApi"
+				},
+				"RouteKey": "POST /",
+				"AuthorizationType": "NONE",
+				"Target": {
+					"Fn::Join": [
+						"/",
+						[
+							"integrations",
+							{
+								"Ref": "HttpApiIntegration"
+							}
+						]
+					]
+				}
 			}
 		},
 		"HttpApiIntegration": {
@@ -691,39 +718,138 @@
 				"PayloadFormatVersion": "1.0"
 			}
 		},
-		"HttpApiRoute": {
-			"Type": "AWS::ApiGatewayV2::Route",
-			"DependsOn": [
-				"HttpApiIntegration"
-			],
+		"HttpApi": {
+			"Type": "AWS::ApiGatewayV2::Api",
 			"Properties": {
-				"ApiId": {
-					"Ref": "HttpApi"
+				"Name": "calendly",
+				"Description": "Get notifications from Calendly.",
+				"ProtocolType": "HTTP"
+			}
+		},
+		"CalendarLambdaCodeBuild": {
+			"Type": "AWS::CodeBuild::Project",
+			"Properties": {
+				"Name": "calendar",
+				"ServiceRole": {
+					"Fn::GetAtt": [
+						"CalendarLambdaCodeBuildRole",
+						"Arn"
+					]
 				},
-				"RouteKey": "POST /",
-				"AuthorizationType": "NONE",
-				"Target": {
-					"Fn::Join": [
-						"/",
-						[
-							"integrations",
-							{
-								"Ref": "HttpApiIntegration"
+				"TimeoutInMinutes": 60,
+				"Source": {
+					"Type": "CODEPIPELINE",
+					"BuildSpec": "buildspec.yml"
+				},
+				"Artifacts": {
+					"Type": "CODEPIPELINE"
+				},
+				"Environment": {
+					"Type": "LINUX_CONTAINER",
+					"ComputeType": "BUILD_GENERAL1_SMALL",
+					"Image": "aws/codebuild/standard:3.0",
+					"EnvironmentVariables": [
+						{
+							"Name": "AWS_REGION",
+							"Type": "PLAINTEXT",
+							"Value": {
+								"Ref": "AWS::Region"
 							}
-						]
+						}
 					]
 				}
 			}
 		},
-		"HttpApiStage": {
-			"Type": "AWS::ApiGatewayV2::Stage",
+		"CalendarLambdaCodeBuildRole": {
+			"Type": "AWS::IAM::Role",
 			"Properties": {
-				"ApiId": {
-					"Ref": "HttpApi"
+				"RoleName": "calendar_codebuild",
+				"AssumeRolePolicyDocument": {
+					"Version": "2012-10-17",
+					"Statement": [
+						{
+							"Effect": "Allow",
+							"Principal": {
+								"Service": "codebuild.amazonaws.com"
+							},
+							"Action": "sts:AssumeRole"
+						}
+					]
 				},
-				"AutoDeploy": true,
-				"Description": "Default",
-				"StageName": "$default"
+				"Policies": [
+					{
+						"PolicyName": "cloudwatch_logs",
+						"PolicyDocument": {
+							"Version": "2012-10-17",
+							"Statement": [
+								{
+									"Effect": "Allow",
+									"Action": [
+										"logs:CreateLogGroup",
+										"logs:CreateLogStream",
+										"logs:PutLogEvents"
+									],
+									"Resource": [
+										{
+											"Fn::Sub": "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/*"
+										}
+									]
+								}
+							]
+						}
+					},
+					{
+						"PolicyName": "s3_artifact",
+						"PolicyDocument": {
+							"Version": "2012-10-17",
+							"Statement": [
+								{
+									"Effect": "Allow",
+									"Action": "s3:GetObject",
+									"Resource": {
+										"Fn::Sub": "arn:aws:s3:::${CodePipelineArtifactsParam}/*"
+									}
+								}
+							]
+						}
+					},
+					{
+						"PolicyName": "lambda_update",
+						"PolicyDocument": {
+							"Version": "2012-10-17",
+							"Statement": [
+								{
+									"Effect": "Allow",
+									"Action": "lambda:UpdateFunctionCode",
+									"Resource": {
+										"Fn::GetAtt": [
+											"CalendarLambda",
+											"Arn"
+										]
+									}
+								}
+							]
+						}
+					}
+				]
+			}
+		},
+		"CalendarCodePipelineRole": {
+			"Type": "AWS::IAM::Role",
+			"Properties": {
+				"RoleName": "calendar_code_pipeline",
+				"AssumeRolePolicyDocument": {
+					"Version": "2012-10-17",
+					"Statement": [
+						{
+							"Effect": "Allow",
+							"Principal": {
+								"Service": "codepipeline.amazonaws.com"
+							},
+							"Action": "sts:AssumeRole"
+						}
+					]
+				}
 			}
 		},
 		"CalendarCodePipeline": {
@@ -831,24 +957,6 @@
 							"Resource": {
 								"Fn::Sub": "arn:aws:s3:::${CodePipelineArtifactsParam}/*"
 							}
-						}
-					]
-				}
-			}
-		},
-		"CalendarCodePipelineRole": {
-			"Type": "AWS::IAM::Role",
-			"Properties": {
-				"RoleName": "calendar_code_pipeline",
-				"AssumeRolePolicyDocument": {
-					"Version": "2012-10-17",
-					"Statement": [
-						{
-							"Effect": "Allow",
-							"Principal": {
-								"Service": "codepipeline.amazonaws.com"
-							},
-							"Action": "sts:AssumeRole"
 						}
 					]
 				}
@@ -975,114 +1083,6 @@
 						}
 					]
 				}
-			}
-		},
-		"CalendarLambdaCodeBuild": {
-			"Type": "AWS::CodeBuild::Project",
-			"Properties": {
-				"Name": "calendar",
-				"ServiceRole": {
-					"Fn::GetAtt": [
-						"CalendarLambdaCodeBuildRole",
-						"Arn"
-					]
-				},
-				"TimeoutInMinutes": 60,
-				"Source": {
-					"Type": "CODEPIPELINE",
-					"BuildSpec": "buildspec.yml"
-				},
-				"Artifacts": {
-					"Type": "CODEPIPELINE"
-				},
-				"Environment": {
-					"Type": "LINUX_CONTAINER",
-					"ComputeType": "BUILD_GENERAL1_SMALL",
-					"Image": "aws/codebuild/standard:3.0",
-					"EnvironmentVariables": [
-						{
-							"Name": "AWS_REGION",
-							"Type": "PLAINTEXT",
-							"Value": {
-								"Ref": "AWS::Region"
-							}
-						}
-					]
-				}
-			}
-		},
-		"CalendarLambdaCodeBuildRole": {
-			"Type": "AWS::IAM::Role",
-			"Properties": {
-				"RoleName": "calendar_codebuild",
-				"AssumeRolePolicyDocument": {
-					"Version": "2012-10-17",
-					"Statement": [
-						{
-							"Effect": "Allow",
-							"Principal": {
-								"Service": "codebuild.amazonaws.com"
-							},
-							"Action": "sts:AssumeRole"
-						}
-					]
-				},
-				"Policies": [
-					{
-						"PolicyName": "cloudwatch_logs",
-						"PolicyDocument": {
-							"Version": "2012-10-17",
-							"Statement": [
-								{
-									"Effect": "Allow",
-									"Action": [
-										"logs:CreateLogGroup",
-										"logs:CreateLogStream",
-										"logs:PutLogEvents"
-									],
-									"Resource": [
-										{
-											"Fn::Sub": "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/*"
-										}
-									]
-								}
-							]
-						}
-					},
-					{
-						"PolicyName": "s3_artifact",
-						"PolicyDocument": {
-							"Version": "2012-10-17",
-							"Statement": [
-								{
-									"Effect": "Allow",
-									"Action": "s3:GetObject",
-									"Resource": {
-										"Fn::Sub": "arn:aws:s3:::${CodePipelineArtifactsParam}/*"
-									}
-								}
-							]
-						}
-					},
-					{
-						"PolicyName": "lambda_update",
-						"PolicyDocument": {
-							"Version": "2012-10-17",
-							"Statement": [
-								{
-									"Effect": "Allow",
-									"Action": "lambda:UpdateFunctionCode",
-									"Resource": {
-										"Fn::GetAtt": [
-											"CalendarLambda",
-											"Arn"
-										]
-									}
-								}
-							]
-						}
-					}
-				]
 			}
 		}
 	}
