@@ -2,7 +2,7 @@
 	"CalendarLambdaCodeBuild": {
 		"Type": "AWS::CodeBuild::Project",
 		"Properties": {
-			"Name": "calendar",
+			"Name": "webpage_consulting_lambda_calendar",
 			"ServiceRole": { "Fn::GetAtt": ["CalendarLambdaCodeBuildRole", "Arn"] },
 			"TimeoutInMinutes": 60,
 			"Source": {

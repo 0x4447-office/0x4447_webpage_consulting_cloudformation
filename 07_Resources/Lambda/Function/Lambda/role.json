@@ -2,7 +2,7 @@
 	"CalendarLambdaRole": {
 		"Type": "AWS::IAM::Role",
 		"Properties": {
-			"RoleName": "calendar_lambda",
+			"RoleName": "webpage_consulting_calendar_lambda",
 			"AssumeRolePolicyDocument": {
 				"Version": "2012-10-17",
 				"Statement": [

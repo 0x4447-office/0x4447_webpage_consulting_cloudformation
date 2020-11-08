@@ -2,7 +2,7 @@
 	"CalendarLambdaCodeBuildRole": {
 		"Type": "AWS::IAM::Role",
 		"Properties": {
-			"RoleName": "calendar_codebuild",
+			"RoleName": "webpage_consulting_lambda_calendar_codebuild",
 			"AssumeRolePolicyDocument": {
 				"Version": "2012-10-17",
 				"Statement": [

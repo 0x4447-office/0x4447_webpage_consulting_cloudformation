@@ -2,24 +2,20 @@
 	"AWSTemplateFormatVersion": "2010-09-09",
 	"Description": "Deploy all resources that are needed for the Terms of Service page.",
 	"Parameters": {
-		"DomainHomePage": {
-			"Description": "Type your domain for your project",
-			"Type": "String"
-		},
-		"CodePipelineArtifactsParam": {
-			"Description": "The S3 bucket name where CodePipeline will store the artifacts (this is needed only by CP to work, and pass task results to the next stage).",
-			"Type": "String"
-		},
-		"CertificateARN": {
-			"Description": "The ARN of a SSL Certificate.",
+		"GitHubTokenParam": {
+			"Description": "You need to create a Personal access tokens (https://github.com/settings/tokens) for CodePipeline to have access to the GitHub repo despite it being public.",
 			"Type": "String"
 		},
 		"S3BucketEmail": {
 			"Description": "This bucket is where we are goign to save the data from the contact page, to then be sent as an email.",
 			"Type": "String"
 		},
-		"GitHubTokenParam": {
-			"Description": "You need to create a Personal access tokens (https://github.com/settings/tokens) for CodePipeline to have access to the GitHub repo despite it being public.",
+		"DomainHomePage": {
+			"Description": "Type your domain for your project",
+			"Type": "String"
+		},
+		"CodePipelineArtifactsParam": {
+			"Description": "The S3 bucket name where CodePipeline will store the artifacts (this is needed only by CP to work, and pass task results to the next stage).",
 			"Type": "String"
 		},
 		"StageParam": {
@@ -30,6 +26,10 @@
 				"development"
 			],
 			"Default": "development"
+		},
+		"CertificateARN": {
+			"Description": "The ARN of a SSL Certificate.",
+			"Type": "String"
 		}
 	},
 	"Resources": {
@@ -287,35 +287,6 @@
 				}
 			}
 		},
-		"CodeBuildWebpageDocumentationPolicyCWL": {
-			"Type": "AWS::IAM::Policy",
-			"Properties": {
-				"Roles": [
-					{
-						"Ref": "CodeBuildWebpageDocumentationRole"
-					}
-				],
-				"PolicyName": "cloud_watch_log_access",
-				"PolicyDocument": {
-					"Version": "2012-10-17",
-					"Statement": [
-						{
-							"Effect": "Allow",
-							"Action": [
-								"logs:CreateLogGroup",
-								"logs:CreateLogStream",
-								"logs:PutLogEvents"
-							],
-							"Resource": [
-								{
-									"Fn::Sub": "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/*"
-								}
-							]
-						}
-					]
-				}
-			}
-		},
 		"CodeBuildWebpageDocumentationPolicyS3": {
 			"Type": "AWS::IAM::Policy",
 			"Properties": {
@@ -360,6 +331,53 @@
 							"Resource": {
 								"Fn::Sub": "arn:aws:s3:::${S3WebpageDocumentation}/*"
 							}
+						}
+					]
+				}
+			}
+		},
+		"CodeBuildWebpageDocumentationPolicyCWL": {
+			"Type": "AWS::IAM::Policy",
+			"Properties": {
+				"Roles": [
+					{
+						"Ref": "CodeBuildWebpageDocumentationRole"
+					}
+				],
+				"PolicyName": "cloud_watch_log_access",
+				"PolicyDocument": {
+					"Version": "2012-10-17",
+					"Statement": [
+						{
+							"Effect": "Allow",
+							"Action": [
+								"logs:CreateLogGroup",
+								"logs:CreateLogStream",
+								"logs:PutLogEvents"
+							],
+							"Resource": [
+								{
+									"Fn::Sub": "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/*"
+								}
+							]
+						}
+					]
+				}
+			}
+		},
+		"PipelineWebpageDocumentationRole": {
+			"Type": "AWS::IAM::Role",
+			"Properties": {
+				"RoleName": "webpage_consulting_codepipeline",
+				"AssumeRolePolicyDocument": {
+					"Version": "2012-10-17",
+					"Statement": [
+						{
+							"Effect": "Allow",
+							"Principal": {
+								"Service": "codepipeline.amazonaws.com"
+							},
+							"Action": "sts:AssumeRole"
 						}
 					]
 				}
@@ -441,24 +459,6 @@
 				]
 			}
 		},
-		"PipelineWebpageDocumentationRole": {
-			"Type": "AWS::IAM::Role",
-			"Properties": {
-				"RoleName": "webpage_consulting_codepipeline",
-				"AssumeRolePolicyDocument": {
-					"Version": "2012-10-17",
-					"Statement": [
-						{
-							"Effect": "Allow",
-							"Principal": {
-								"Service": "codepipeline.amazonaws.com"
-							},
-							"Action": "sts:AssumeRole"
-						}
-					]
-				}
-			}
-		},
 		"PipelineWebpageDocumentationWebhook": {
 			"Type": "AWS::CodePipeline::Webhook",
 			"Properties": {
@@ -487,29 +487,6 @@
 				"RegisterWithThirdParty": true
 			}
 		},
-		"PipelineWebpageDocumentationPolicyS3": {
-			"Type": "AWS::IAM::Policy",
-			"Properties": {
-				"PolicyName": "s3",
-				"Roles": [
-					{
-						"Ref": "PipelineWebpageDocumentationRole"
-					}
-				],
-				"PolicyDocument": {
-					"Version": "2012-10-17",
-					"Statement": [
-						{
-							"Effect": "Allow",
-							"Action": "s3:*",
-							"Resource": {
-								"Fn::Sub": "arn:aws:s3:::${CodePipelineArtifactsParam}/*"
-							}
-						}
-					]
-				}
-			}
-		},
 		"PipelineWebpageDocumentationPolicyCB": {
 			"Type": "AWS::IAM::Policy",
 			"Properties": {
@@ -530,6 +507,29 @@
 							],
 							"Resource": {
 								"Fn::Sub": "arn:aws:codebuild:${AWS::Region}:${AWS::AccountId}:project/${CodeBuildWebpageDocumentation}"
+							}
+						}
+					]
+				}
+			}
+		},
+		"PipelineWebpageDocumentationPolicyS3": {
+			"Type": "AWS::IAM::Policy",
+			"Properties": {
+				"PolicyName": "s3",
+				"Roles": [
+					{
+						"Ref": "PipelineWebpageDocumentationRole"
+					}
+				],
+				"PolicyDocument": {
+					"Version": "2012-10-17",
+					"Statement": [
+						{
+							"Effect": "Allow",
+							"Action": "s3:*",
+							"Resource": {
+								"Fn::Sub": "arn:aws:s3:::${CodePipelineArtifactsParam}/*"
 							}
 						}
 					]
@@ -644,39 +644,12 @@
 				}
 			}
 		},
-		"HttpApiStage": {
-			"Type": "AWS::ApiGatewayV2::Stage",
+		"HttpApi": {
+			"Type": "AWS::ApiGatewayV2::Api",
 			"Properties": {
-				"ApiId": {
-					"Ref": "HttpApi"
-				},
-				"AutoDeploy": true,
-				"Description": "Default",
-				"StageName": "$default"
-			}
-		},
-		"HttpApiRoute": {
-			"Type": "AWS::ApiGatewayV2::Route",
-			"DependsOn": [
-				"HttpApiIntegration"
-			],
-			"Properties": {
-				"ApiId": {
-					"Ref": "HttpApi"
-				},
-				"RouteKey": "POST /",
-				"AuthorizationType": "NONE",
-				"Target": {
-					"Fn::Join": [
-						"/",
-						[
-							"integrations",
-							{
-								"Ref": "HttpApiIntegration"
-							}
-						]
-					]
-				}
+				"Name": "calendly",
+				"Description": "Get notifications from Calendly.",
+				"ProtocolType": "HTTP"
 			}
 		},
 		"HttpApiIntegration": {
@@ -718,52 +691,45 @@
 				"PayloadFormatVersion": "1.0"
 			}
 		},
-		"HttpApi": {
-			"Type": "AWS::ApiGatewayV2::Api",
+		"HttpApiRoute": {
+			"Type": "AWS::ApiGatewayV2::Route",
+			"DependsOn": [
+				"HttpApiIntegration"
+			],
 			"Properties": {
-				"Name": "calendly",
-				"Description": "Get notifications from Calendly.",
-				"ProtocolType": "HTTP"
-			}
-		},
-		"CalendarLambdaCodeBuild": {
-			"Type": "AWS::CodeBuild::Project",
-			"Properties": {
-				"Name": "calendar",
-				"ServiceRole": {
-					"Fn::GetAtt": [
-						"CalendarLambdaCodeBuildRole",
-						"Arn"
-					]
+				"ApiId": {
+					"Ref": "HttpApi"
 				},
-				"TimeoutInMinutes": 60,
-				"Source": {
-					"Type": "CODEPIPELINE",
-					"BuildSpec": "buildspec.yml"
-				},
-				"Artifacts": {
-					"Type": "CODEPIPELINE"
-				},
-				"Environment": {
-					"Type": "LINUX_CONTAINER",
-					"ComputeType": "BUILD_GENERAL1_SMALL",
-					"Image": "aws/codebuild/standard:3.0",
-					"EnvironmentVariables": [
-						{
-							"Name": "AWS_REGION",
-							"Type": "PLAINTEXT",
-							"Value": {
-								"Ref": "AWS::Region"
+				"RouteKey": "POST /",
+				"AuthorizationType": "NONE",
+				"Target": {
+					"Fn::Join": [
+						"/",
+						[
+							"integrations",
+							{
+								"Ref": "HttpApiIntegration"
 							}
-						}
+						]
 					]
 				}
+			}
+		},
+		"HttpApiStage": {
+			"Type": "AWS::ApiGatewayV2::Stage",
+			"Properties": {
+				"ApiId": {
+					"Ref": "HttpApi"
+				},
+				"AutoDeploy": true,
+				"Description": "Default",
+				"StageName": "$default"
 			}
 		},
 		"CalendarLambdaCodeBuildRole": {
 			"Type": "AWS::IAM::Role",
 			"Properties": {
-				"RoleName": "calendar_codebuild",
+				"RoleName": "webpage_consulting_lambda_calendar_codebuild",
 				"AssumeRolePolicyDocument": {
 					"Version": "2012-10-17",
 					"Statement": [
@@ -834,19 +800,35 @@
 				]
 			}
 		},
-		"CalendarCodePipelineRole": {
-			"Type": "AWS::IAM::Role",
+		"CalendarLambdaCodeBuild": {
+			"Type": "AWS::CodeBuild::Project",
 			"Properties": {
-				"RoleName": "calendar_code_pipeline",
-				"AssumeRolePolicyDocument": {
-					"Version": "2012-10-17",
-					"Statement": [
+				"Name": "webpage_consulting_lambda_calendar",
+				"ServiceRole": {
+					"Fn::GetAtt": [
+						"CalendarLambdaCodeBuildRole",
+						"Arn"
+					]
+				},
+				"TimeoutInMinutes": 60,
+				"Source": {
+					"Type": "CODEPIPELINE",
+					"BuildSpec": "buildspec.yml"
+				},
+				"Artifacts": {
+					"Type": "CODEPIPELINE"
+				},
+				"Environment": {
+					"Type": "LINUX_CONTAINER",
+					"ComputeType": "BUILD_GENERAL1_SMALL",
+					"Image": "aws/codebuild/standard:3.0",
+					"EnvironmentVariables": [
 						{
-							"Effect": "Allow",
-							"Principal": {
-								"Service": "codepipeline.amazonaws.com"
-							},
-							"Action": "sts:AssumeRole"
+							"Name": "AWS_REGION",
+							"Type": "PLAINTEXT",
+							"Value": {
+								"Ref": "AWS::Region"
+							}
 						}
 					]
 				}
@@ -856,7 +838,7 @@
 			"Type": "AWS::CodePipeline::Pipeline",
 			"DependsOn": "CalendarCodePipelineRole",
 			"Properties": {
-				"Name": "calendar",
+				"Name": "webpage_consulting_lambda_calendar",
 				"ArtifactStore": {
 					"Location": {
 						"Ref": "CodePipelineArtifactsParam"
@@ -929,6 +911,34 @@
 				]
 			}
 		},
+		"CalendarCodePipelineWebhook": {
+			"Type": "AWS::CodePipeline::Webhook",
+			"Properties": {
+				"Authentication": "GITHUB_HMAC",
+				"AuthenticationConfiguration": {
+					"SecretToken": {
+						"Ref": "GitHubTokenParam"
+					}
+				},
+				"Filters": [
+					{
+						"JsonPath": "$.ref",
+						"MatchEquals": "refs/heads/{Branch}"
+					}
+				],
+				"TargetPipeline": {
+					"Ref": "CalendarCodePipeline"
+				},
+				"TargetAction": "Material",
+				"TargetPipelineVersion": {
+					"Fn::GetAtt": [
+						"CalendarCodePipeline",
+						"Version"
+					]
+				},
+				"RegisterWithThirdParty": true
+			}
+		},
 		"CodePipelinePolicyCB": {
 			"Type": "AWS::IAM::Policy",
 			"Properties": {
@@ -962,38 +972,28 @@
 				}
 			}
 		},
-		"CalendarCodePipelineWebhook": {
-			"Type": "AWS::CodePipeline::Webhook",
+		"CalendarCodePipelineRole": {
+			"Type": "AWS::IAM::Role",
 			"Properties": {
-				"Authentication": "GITHUB_HMAC",
-				"AuthenticationConfiguration": {
-					"SecretToken": {
-						"Ref": "GitHubTokenParam"
-					}
-				},
-				"Filters": [
-					{
-						"JsonPath": "$.ref",
-						"MatchEquals": "refs/heads/{Branch}"
-					}
-				],
-				"TargetPipeline": {
-					"Ref": "CalendarCodePipeline"
-				},
-				"TargetAction": "Material",
-				"TargetPipelineVersion": {
-					"Fn::GetAtt": [
-						"CalendarCodePipeline",
-						"Version"
+				"RoleName": "webpage_consulting_lambda_calendar_pipeline",
+				"AssumeRolePolicyDocument": {
+					"Version": "2012-10-17",
+					"Statement": [
+						{
+							"Effect": "Allow",
+							"Principal": {
+								"Service": "codepipeline.amazonaws.com"
+							},
+							"Action": "sts:AssumeRole"
+						}
 					]
-				},
-				"RegisterWithThirdParty": true
+				}
 			}
 		},
 		"CalendarLambda": {
 			"Type": "AWS::Lambda::Function",
 			"Properties": {
-				"FunctionName": "calendar",
+				"FunctionName": "webpage_consulting_calendar",
 				"Code": {
 					"ZipFile": {
 						"Fn::Join": [
@@ -1042,7 +1042,7 @@
 		"CalendarLambdaRole": {
 			"Type": "AWS::IAM::Role",
 			"Properties": {
-				"RoleName": "calendar_lambda",
+				"RoleName": "webpage_consulting_calendar_lambda",
 				"AssumeRolePolicyDocument": {
 					"Version": "2012-10-17",
 					"Statement": [

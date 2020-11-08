@@ -2,7 +2,7 @@
 	"CalendarCodePipelineRole": {
 		"Type": "AWS::IAM::Role",
 		"Properties": {
-			"RoleName": "calendar_code_pipeline",
+			"RoleName": "webpage_consulting_lambda_calendar_pipeline",
 			"AssumeRolePolicyDocument": {
 				"Version": "2012-10-17",
 				"Statement": [
